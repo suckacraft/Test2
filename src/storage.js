@@ -22,9 +22,11 @@ export function configureStorage(opts = {}) {
   return { ...cfg };
 }
 
-/** Resolve a logical name to a concrete, namespaced + scoped storage key. */
+/** Resolve a logical name to a concrete, namespaced + scoped storage key.
+ *  Standalone:  "qp_feedback"
+ *  Hosted:      "kb_feedback_u<uid>"  — matches crm-project's applyUserKeys scheme. */
 export function storageKey(name) {
-  return `${cfg.prefix}_${name}${cfg.scope ? `__${cfg.scope}` : ""}`;
+  return `${cfg.prefix}_${name}${cfg.scope ? `_u${cfg.scope}` : ""}`;
 }
 
 function store() {

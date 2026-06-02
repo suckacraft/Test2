@@ -22,10 +22,11 @@ The parser unifies storage by calling `configureStorage({ prefix:"kb", scope:use
 For that to line up:
 1. Pull the CRM's `K`, `KG`, `ls()/ss()`, `applyUserKeys`, and session logic into
    `src/core/storage.js` with **named exports**.
-2. Export a `getCurrentUserId()` (whatever the logged-in `KG.session` user id is).
+2. Export a `getCurrentUserId()` (the logged-in `KG.session.userId`).
    The parser's `initForCrm({ userId })` will pass it in.
-3. Keep the `kb_` prefix and the `__<user>` scoping scheme — the parser already
-   matches that pattern (`kb_feedback__<user>`).
+3. Keep the existing scoping scheme — `applyUserKeys` makes keys `kb_<name>_u<uid>`.
+   The parser now matches that exactly (`configureStorage({prefix:"kb",scope:uid})`
+   → `kb_feedback_u<uid>`), so per-user data lands in the same namespace.
 
 Result: at merge there is **one** storage module, shared by both features.
 

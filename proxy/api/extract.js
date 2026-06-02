@@ -23,6 +23,12 @@ export async function onRequest(context) {
   const req = context.request;
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: cors() });
+  // Cloudflare passes secrets on context.env, but handler.js reads process.env.
+  // Bridge them (requires the `nodejs_compat` flag so `process` exists).
+  if (context.env && typeof process !== "undefined") {
+    for (const k of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"])
+      if (context.env[k] && !process.env[k]) process.env[k] = context.env[k];
+  }
   const body = await req.json().catch(() => ({}));
   const result = await handleExtract(body);
   return new Response(JSON.stringify(result.json), {

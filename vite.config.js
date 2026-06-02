@@ -9,6 +9,9 @@ import { defineConfig } from "vite";
 // so `npm run dev` (app) + `npm run proxy` (LLM) is the full local stack.
 export default defineConfig({
   root: ".",
+  // "/" for root deploys (Vercel/Netlify/Cloudflare). For GitHub Pages under a
+  // subpath set VITE_BASE=/<repo>/ in the build env (the Pages workflow does this).
+  base: process.env.VITE_BASE || "/",
   server: {
     port: 5173,
     proxy: {
