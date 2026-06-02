@@ -93,5 +93,17 @@ ok(post2.json.appended === 1, `dedup: second post should append 1, got ${post2.j
 const get1 = await handleFeedback("GET", "feedback", null);
 ok(get1.json.items.length === 3, `store should hold 3 deduped items, got ${get1.json.items.length}`);
 
+// 11) Standalone → CRM data shim copies qp_* into the kb_<name>_u<uid> namespace.
+globalThis.localStorage = (() => {
+  const m = new Map();
+  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) };
+})();
+localStorage.setItem("qp_feedback", JSON.stringify([{ id: "z" }]));
+const { migrateStandaloneData } = await import("../src/integration/crmBridge.js");
+const shim = migrateStandaloneData("42");
+ok(shim.migrated === 1, `shim should migrate 1 key, got ${shim.migrated}`);
+ok(localStorage.getItem("kb_feedback_u42") === JSON.stringify([{ id: "z" }]),
+  "shim should copy qp_feedback → kb_feedback_u42");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

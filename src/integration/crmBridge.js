@@ -23,8 +23,27 @@ import { recordCorrection } from "../feedback.js";
  * @param userId  the CRM's current user id (KG.session user)
  */
 export function initForCrm({ userId } = {}) {
+  migrateStandaloneData(userId);                       // carry over standalone dev data
   configureStorage({ prefix: "kb", scope: userId || "" });
   return { extractors: listExtractors().map(e => ({ id: e.id, label: e.label, needsKey: e.needsKey })) };
+}
+
+/**
+ * One-time carry-over of POC data collected in standalone mode (qp_* keys) into
+ * the CRM's per-user namespace (kb_<name>_u<uid>), so feedback/golden/settings
+ * gathered while testing aren't lost at merge. Idempotent: never overwrites an
+ * existing target. Mirrors the CRM's own migrateExistingDataToUser pattern.
+ */
+export function migrateStandaloneData(userId) {
+  if (typeof localStorage === "undefined" || !userId) return { migrated: 0 };
+  let migrated = 0;
+  for (const name of ["settings", "feedback", "golden"]) {
+    const src = `qp_${name}`;
+    const dst = `kb_${name}_u${userId}`;
+    const val = localStorage.getItem(src);
+    if (val != null && localStorage.getItem(dst) == null) { localStorage.setItem(dst, val); migrated++; }
+  }
+  return { migrated };
 }
 
 /** Ingest + extract a file into a StandardizedQuote (+ the raw ingested doc). */

@@ -81,25 +81,64 @@ Make corpus-transfer a habit, not an afterthought:
   from the durable corpus. Changing the model = re-run distillation over the same
   corpus.
 
-## Where the corpus should ultimately live (recommended)
+## Where the corpus lives (decided: a managed database)
 
-A dedicated, versioned **dataset store** separate from the app repo:
-- **Simplest / most auditable:** a `quote-corpus` git repo holding
-  `feedback.jsonl` + `golden.jsonl`. The proxy commits/syncs to it. Full history,
-  diffable, survives anything.
-- **Most continuous / queryable:** a small managed DB or object store behind the
-  same `/api/feedback` contract (point `DATA_DIR`/the backend there). Best when
-  multiple users/instances contribute concurrently.
+The corpus lives in a **managed Postgres database**, not in GitHub and not in the
+browser. This is the most sustainable choice: it survives repo moves (we intend
+to move off GitHub), supports concurrent multi-user contribution, and is queryable
+for analytics. The proxy talks to it behind the unchanged `/api/feedback` +
+`/api/golden` contract.
 
-Either way, the app and the CRM are just **clients** of that store. When the two
-chats merge (see [MIGRATION.md](./MIGRATION.md)), nothing about the corpus
-changes — it was never coupled to the app in the first place.
+Backends are pluggable (`proxy/feedbackStore.js` dispatches by env):
+
+| Env | Backend | Use |
+|---|---|---|
+| `CORPUS_BACKEND=postgres` (or just `DATABASE_URL` set) | managed Postgres | **production** |
+| _unset_ | JSONL files (`DATA_DIR`) | local dev / smoke tests |
+
+Schema (auto-created on first write — one table, versioned rows as JSONB):
+
+```sql
+create table corpus(
+  kind        text not null,           -- 'feedback' | 'golden'
+  id          text not null,           -- example id (idempotent upsert key)
+  data        jsonb not null,          -- the full versioned example/case
+  captured_at timestamptz not null default now(),
+  primary key (kind, id)
+);
+```
+
+Because every row stores the **full versioned example** (with provenance) as
+JSONB, the DB schema never has to change when the example contract evolves —
+migrations happen in `contract.js` on read. The database is durable storage, not
+a rigid schema to fight.
+
+Any managed Postgres works (Neon, Supabase, RDS, Cloud SQL). The app and the CRM
+are just **clients** of this store. When the two chats merge
+(see [MIGRATION.md](./MIGRATION.md)), nothing about the corpus changes — it was
+never coupled to the app in the first place.
+
+### Hosting it off GitHub
+- **App:** any static host (or your own server) — it's just `dist/`.
+- **Proxy + corpus API:** any serverless/host with `DATABASE_URL` set
+  (see [DEPLOYMENT.md](./DEPLOYMENT.md)).
+- **Corpus data:** the managed DB, fully independent of source control.
+
+### Production data hygiene (do these)
+- **Backups / PITR:** enable automated backups on the managed DB — the corpus is
+  now a business asset.
+- **Access:** the corpus API should require auth (a token/header) so it isn't an
+  open write endpoint; restrict CORS to your origin.
+- **PII:** quotes can contain customer/pricing data. Treat the corpus as
+  confidential; control who can read/export it.
+- **Retention & provenance:** never hard-delete examples — soft-delete or version
+  them, so the learning history stays intact and auditable.
 
 ## Continuity checklist
 - [ ] Every example has `exampleSchemaVersion` + provenance ✅ (contract.js)
 - [ ] Schema bumps ship a migration; no example is ever dropped ✅ (migrateExample)
-- [ ] Corpus persists outside the browser ✅ (feedbackStore.js, swappable backend)
+- [ ] Corpus persists in a managed DB, outside the browser ✅ (postgres backend)
 - [ ] Local ⇄ durable sync on save + boot ✅ (sync.js)
 - [ ] Eval is model-agnostic, run on every extractor/prompt/model change ✅
 - [ ] Distillation (few-shot / rules / fine-tune sets) regenerated from the store
-- [ ] Corpus lives in its own versioned store/repo, app is just a client
+- [ ] App + CRM are just clients of the corpus API; DB backups + auth enabled

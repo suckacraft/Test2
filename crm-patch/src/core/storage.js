@@ -41,10 +41,16 @@ export function uid() { return Date.now().toString(36) + Math.random().toString(
 
 // ── Current user (replaces the old global `currentUser`) ───────────────────────
 let currentUser = null;
-export function setCurrentUser(u) { currentUser = u; if (u?.id) applyUserKeys(u.id); }
+let currentScopeId = "";
+export function setCurrentUser(u) {
+  currentUser = u;
+  // A user object has `id`; a restored session object has `userId`. Support both.
+  currentScopeId = u?.id || u?.userId || "";
+  if (currentScopeId) applyUserKeys(currentScopeId);
+}
 export function getCurrentUser() { return currentUser; }
-/** The id the quote-parser passes to configureStorage({ scope }). */
-export function getCurrentUserId() { return currentUser?.id || ""; }
+/** The id the quote-parser passes to configureStorage({ scope }) / initForCrm. */
+export function getCurrentUserId() { return currentScopeId; }
 
 // ── Auth helpers ───────────────────────────────────────────────────────────────
 export async function hashPassword(password, salt) {

@@ -62,6 +62,49 @@ categories. Refactor so there's **one obvious place** to add auto-fill later:
   ships `getSettings()/saveSettings()`; plan to surface those in the CRM's
   existing settings panel.
 
+## Persistence & databasing best practices (REQUIRED)
+
+We decided the durable home for data is a **managed Postgres database** (so it
+lives off GitHub and survives product change), with `localStorage` demoted to a
+**working cache**. The CRM must align with this — do **not** entrench
+localStorage-only persistence. See
+[LEARNING_CONTINUITY.md](./LEARNING_CONTINUITY.md) for the full rationale.
+
+Concretely, on the CRM side:
+
+1. **The learning corpus is NOT the CRM's to store.** The parser owns it and
+   syncs it to the managed DB via `/api/feedback` + `/api/golden`. Don't copy
+   feedback/eval data into CRM tables or reinvent its storage. Just call
+   `initForCrm({ userId })` — the parser handles sync + the standalone→user data
+   shim automatically.
+
+2. **Treat `localStorage` as a cache, not the source of truth.** Today the CRM
+   persists opportunities/quotes/files in `localStorage` (`kb_*_u<uid>`). That's
+   fine for the POC, but plan the same durability tier the parser uses:
+   - a server-side **managed-Postgres** persistence layer behind a small API
+     (mirror the proxy's pattern: `GET/POST /api/...`, env-selected backend);
+   - `localStorage` becomes an offline/working copy that **syncs** to the DB on
+     save + rehydrates on boot (mirror `src/dataset/sync.js`).
+
+3. **Apply the corpus's permanence principles to ALL durable records** (opps,
+   quotes, attachments):
+   - **versioned records** + **migrations on read** (you already do this with
+     `CONFIG_VERSION`/`migrateConfig` — keep it, extend it; never drop data);
+   - **provenance/timestamps** on records so history is auditable;
+   - **never hard-delete** — soft-delete/version so history survives;
+   - **backups / PITR** enabled on the managed DB; **auth** on every write API;
+     **CORS** locked to your origin; treat customer/pricing data as confidential.
+
+4. **One DB contract, many clients.** The CRM and the parser should both be
+   clients of managed-DB-backed APIs with the same shape (`GET`→items,
+   `POST {items}`→{appended}). That's what lets you move off GitHub and swap
+   hosts without touching the front-end.
+
+> POC reality check: you don't have to migrate all CRM data to Postgres today.
+> The requirement now is to (a) let the parser sync the corpus to the managed DB,
+> and (b) not build new localStorage-only persistence that you'll have to unwind.
+> Structure CRM persistence so a DB tier slots in behind the same sync pattern.
+
 ## Hygiene that keeps the two chats mergeable
 - **No new globals** — everything module-scoped (the parser is). Globals are the
   main thing that clashes on merge.
@@ -76,4 +119,6 @@ categories. Refactor so there's **one obvious place** to add auto-fill later:
 - [ ] buy-quote object fields match the contract above
 - [ ] buy-quote upload lives in its own module with a marked auto-fill hook
 - [ ] no quote-parsing logic duplicated in the CRM
+- [ ] corpus left to the parser (synced to the managed DB via /api/feedback) — not copied into CRM storage
+- [ ] no NEW localStorage-only persistence added; CRM persistence structured to take a managed-DB tier
 - [ ] no new globals; Node/Vite versions match

@@ -91,6 +91,30 @@ proxy on Vercel/Cloudflare, then point the app at it cross-origin.
 
 ---
 
+## Durable corpus: managed Postgres (production)
+
+The feedback/eval corpus is stored in a **managed database** so it lives off
+GitHub and survives any product change. The proxy serves it at `/api/feedback`
+and `/api/golden`; the backend is chosen by env.
+
+1. **Provision** a managed Postgres (Neon, Supabase, RDS, Cloud SQL — any works).
+2. **Set env** on the proxy/host:
+   - `CORPUS_BACKEND=postgres`
+   - `DATABASE_URL=postgres://user:pass@host:5432/db`
+   - `PGSSL=require` (most managed providers require TLS)
+3. **Install the driver** where the proxy runs: `cd proxy && npm install`
+   (`pg` is an optionalDependency, so the file backend stays zero-dep).
+4. The `corpus` table is **auto-created on first write** — no manual migration.
+5. In the app's **Settings → Feedback corpus URL**, set `/api/feedback` (same
+   origin) so the browser syncs to the DB.
+
+Without these env vars the proxy falls back to local JSONL files (`DATA_DIR`),
+which is fine for dev but ephemeral on serverless — don't rely on it in prod.
+
+> On serverless, also enable connection pooling appropriate to the platform
+> (e.g. Neon's pooled connection string / Supabase pgBouncer) since functions
+> are short-lived.
+
 ## Local development
 
 ```bash
