@@ -45,12 +45,17 @@ The serverless **proxy** holds the API keys so they never touch the browser.
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 
-# 2. run the proxy (also serves the app) — Node 18+, zero dependencies
-node proxy/server.js
+# 2. install + run the proxy (Node 18+, zero runtime deps) and the app
+npm install
+npm run proxy      # key-holding /api/extract on :8787
+npm run dev        # Vite dev server on :5173, proxies /api → :8787
 
-# 3. open the app
-open http://localhost:8787
+# open http://localhost:5173
 ```
+
+> Prefer no build step? `node proxy/server.js` also serves the raw app at
+> `http://localhost:8787` (it serves `index.html` + `src/` directly — the
+> modules load natively, no bundler needed).
 
 In **Settings**, pick the provider (Anthropic Claude Haiku / OpenAI GPT-4o-mini)
 and set the default extractor to **LLM via proxy**. Drop a quote on the Parse tab.
@@ -101,8 +106,10 @@ review UI edits, the eval harness scores, the customer template renders, and the
 CRM adapter maps. Swapping inference engines (Mock → Claude/GPT → your company
 LLM) touches only the extractor; nothing else changes.
 
-See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the full layout, the
-schema, and the path to integrating into `crm-project` and your internal LLM.
+See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the full layout and the
+schema, and **[docs/MIGRATION.md](docs/MIGRATION.md)** for the exact method to
+fuse this into `crm-project` (full modernization + `git subtree`) and swap in
+your internal LLM.
 
 ```
 index.html              # app shell (matches crm-project styling)
@@ -116,11 +123,13 @@ src/
     llmExtractor.js     # calls the proxy (Claude / GPT)
   template.js           # StandardizedQuote → customer quote HTML (+ markup)
   crmAdapter.js         # → crm-project buyQuote / line-item shapes
+  integration/crmBridge.js  # the ONLY file the CRM imports (merge seam)
   feedback.js           # correction dataset (the improvement loop) + JSONL export
   evaluate.js           # accuracy metrics vs a golden set
-  storage.js            # localStorage (mirrors CRM conventions)
+  storage.js            # pluggable localStorage (prefix/scope → CRM's kb_* + user)
   samples.js            # 3 synthetic quotes + hand-labeled ground truth
   app.js                # UI controller
+vite.config.js          # build + dev proxy (the toolchain the merged app adopts)
 proxy/
   server.js             # local dev server + key-holding /api/extract
   api/extract.js        # serverless deployment (Vercel/Netlify/CF)
