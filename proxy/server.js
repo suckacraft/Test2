@@ -1,0 +1,76 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// server.js — local dev server. Does two jobs:
+//   1. Serves the static POC app (index.html, /src, /samples) from the repo root
+//   2. Exposes POST /api/extract → handleExtract (the key-holding proxy)
+//
+// Run:  ANTHROPIC_API_KEY=... OPENAI_API_KEY=... node proxy/server.js
+// Then: open http://localhost:8787
+//
+// Zero dependencies (Node 18+ built-ins only). For production, deploy
+// proxy/api/extract.js as a serverless function and host the static files
+// anywhere; this file is just the convenient all-in-one for local dev.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { createServer } from "node:http";
+import { readFile, stat } from "node:fs/promises";
+import { join, normalize, extname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { handleExtract } from "./handler.js";
+
+const ROOT = normalize(join(fileURLToPath(new URL(".", import.meta.url)), ".."));
+const PORT = process.env.PORT || 8787;
+
+const MIME = {
+  ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
+  ".json": "application/json", ".csv": "text/csv", ".svg": "image/svg+xml",
+  ".txt": "text/plain", ".map": "application/json",
+};
+
+const server = createServer(async (req, res) => {
+  // CORS so the app can be hosted separately from the proxy if desired.
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
+
+  if (req.method === "POST" && req.url.startsWith("/api/extract")) {
+    try {
+      const body = await readBody(req);
+      const result = await handleExtract(JSON.parse(body || "{}"));
+      res.writeHead(result.status, { "content-type": "application/json" });
+      return res.end(JSON.stringify(result.json));
+    } catch (e) {
+      res.writeHead(500, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
+  // Static file serving (path-traversal-safe).
+  let urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
+  if (urlPath === "/") urlPath = "/index.html";
+  const filePath = normalize(join(ROOT, urlPath));
+  if (!filePath.startsWith(ROOT)) { res.writeHead(403); return res.end("forbidden"); }
+  try {
+    const s = await stat(filePath);
+    if (s.isDirectory()) throw new Error("dir");
+    const data = await readFile(filePath);
+    res.writeHead(200, { "content-type": MIME[extname(filePath)] || "application/octet-stream" });
+    res.end(data);
+  } catch {
+    res.writeHead(404, { "content-type": "text/plain" });
+    res.end("not found");
+  }
+});
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let b = ""; req.on("data", c => (b += c)); req.on("end", () => resolve(b)); req.on("error", reject);
+  });
+}
+
+server.listen(PORT, () => {
+  const keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"].filter(k => process.env[k]);
+  console.log(`Quote-Parser POC running →  http://localhost:${PORT}`);
+  console.log(keys.length ? `Providers ready: ${keys.join(", ")}`
+    : "⚠  No provider keys set — LLM extraction will 500. Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY. The Mock extractor still works.");
+});
