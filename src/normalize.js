@@ -63,6 +63,7 @@ export function normalizeExtraction(raw, meta = {}) {
     meta: {
       extractor: meta.extractor || "unknown",
       model: meta.model || "",
+      promptVersion: meta.promptVersion || "",
       durationMs: meta.durationMs ?? null,
       overallConfidence: clampConf(safe.overallConfidence),
       warnings: Array.isArray(safe.warnings) ? safe.warnings.map(String) : [],

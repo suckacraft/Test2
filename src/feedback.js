@@ -1,78 +1,64 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// feedback.js — the improvement loop.
+// feedback.js — the improvement loop, now built on the durable dataset layer.
 //
-// Every time a human reviews an extraction and corrects it, we store a labeled
-// example: { input fingerprint, what the model produced, what it SHOULD be }.
-// That dataset is the asset that lets us improve inference over time — it powers
-// the eval harness today and few-shot / fine-tuning / prompt-tuning tomorrow.
-//
-// Exportable as JSONL so it can leave the browser and feed any training or eval
-// pipeline (including your company LLM).
+// Examples are versioned + provenance-stamped (dataset/contract.js) and read
+// through the store (dataset/store.js), so legacy data is migrated on read and
+// the corpus is portable across product changes. Public API is unchanged, so the
+// UI and crmBridge keep working.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { KEYS, ls, ss, uid } from "./storage.js";
+import { ls, ss, KEYS, uid } from "./storage.js";
+import { LocalStore } from "./dataset/store.js";
+import { makeExample, migrateExample, exampleToJsonl } from "./dataset/contract.js";
 
-export function getFeedback() { return ls(KEYS.feedback, []) || []; }
+export function getFeedback() { return LocalStore.allExamples(); }
 
 /**
- * Record one review outcome.
+ * Record one review outcome as a versioned, provenance-stamped example.
  * @param predicted  StandardizedQuote the extractor produced
  * @param corrected  StandardizedQuote after human edits (the label)
- * @param context    { fileName, extractor, model, docText }
+ * @param context    { fileName, extractor, model, promptVersion, docText }
  */
 export function recordCorrection(predicted, corrected, context = {}) {
-  const example = {
-    id: uid(),
-    ts: new Date().toISOString(),
-    fileName: context.fileName || corrected.source?.fileName || "",
-    extractor: context.extractor || predicted.meta?.extractor || "",
-    model: context.model || predicted.meta?.model || "",
-    // Keep a trimmed copy of the source so the example is self-contained for
-    // future training/eval without re-uploading the original file.
-    inputExcerpt: (context.docText || "").slice(0, 8000),
-    predicted,
-    corrected,
+  const example = makeExample({
+    predicted, corrected,
     diff: diffQuotes(predicted, corrected),
-  };
-  const all = getFeedback();
-  all.push(example);
-  ss(KEYS.feedback, all);
-  return example;
+    context: { ...context, promptVersion: context.promptVersion || predicted?.meta?.promptVersion },
+  });
+  return LocalStore.appendExample(example);
 }
 
-export function clearFeedback() { ss(KEYS.feedback, []); }
+export function clearFeedback() { LocalStore.clear(); }
 
 /** Promote a correction into the golden eval set (its label becomes truth). */
 export function promoteToGolden(exampleId) {
   const ex = getFeedback().find(e => e.id === exampleId);
   if (!ex) return null;
-  const golden = ls(KEYS.golden, []) || [];
+  const golden = getGolden();
   golden.push({
-    id: uid(), name: ex.fileName || ex.id, ts: new Date().toISOString(),
+    id: uid(), name: ex.provenance?.fileName || ex.id, ts: new Date().toISOString(),
     inputExcerpt: ex.inputExcerpt, expected: ex.corrected,
+    provenance: ex.provenance,
   });
   ss(KEYS.golden, golden);
   return golden[golden.length - 1];
 }
 export function getGolden() { return ls(KEYS.golden, []) || []; }
 
-/**
- * Field-level diff between predicted and corrected quotes. This is the raw
- * material for "where does the model go wrong" analytics.
- */
+/** Field-level diff between predicted and corrected — where the model errs. */
 export function diffQuotes(pred, corr) {
   const changes = [];
   const fields = [
-    ["source.vendor", pred.source?.vendor, corr.source?.vendor],
-    ["source.quoteNumber", pred.source?.quoteNumber, corr.source?.quoteNumber],
-    ["source.currency", pred.source?.currency, corr.source?.currency],
-    ["source.validUntil", pred.source?.validUntil, corr.source?.validUntil],
-    ["totals.grandTotalCost", pred.totals?.grandTotalCost, corr.totals?.grandTotalCost],
+    ["source.vendor", pred?.source?.vendor, corr?.source?.vendor],
+    ["source.quoteNumber", pred?.source?.quoteNumber, corr?.source?.quoteNumber],
+    ["source.currency", pred?.source?.currency, corr?.source?.currency],
+    ["source.validUntil", pred?.source?.validUntil, corr?.source?.validUntil],
+    ["totals.grandTotalCost", pred?.totals?.grandTotalCost, corr?.totals?.grandTotalCost],
   ];
   for (const [path, a, b] of fields)
     if (String(a ?? "") !== String(b ?? "")) changes.push({ path, from: a, to: b });
 
-  const pLines = pred.lineItems || [], cLines = corr.lineItems || [];
+  const pLines = pred?.lineItems || [], cLines = corr?.lineItems || [];
   if (pLines.length !== cLines.length)
     changes.push({ path: "lineItems.count", from: pLines.length, to: cLines.length });
   const n = Math.min(pLines.length, cLines.length);
@@ -85,10 +71,16 @@ export function diffQuotes(pred, corr) {
   return changes;
 }
 
-/** Serialize the dataset as JSONL — one example per line. */
+/** Serialize the dataset as canonical JSONL — the portable interchange format. */
 export function exportJsonl() {
-  return getFeedback().map(e => JSON.stringify({
-    fileName: e.fileName, extractor: e.extractor, model: e.model,
-    input: e.inputExcerpt, output: e.corrected,
-  })).join("\n");
+  return getFeedback().map(exampleToJsonl).join("\n");
+}
+
+/** Import a JSONL export back in (merge by id) — e.g. restoring on a new device. */
+export function importJsonl(text) {
+  const incoming = (text || "").split(/\r?\n/).filter(Boolean).map(line => {
+    try { const o = JSON.parse(line); return migrateExample({ ...o, corrected: o.output, inputExcerpt: o.input }); }
+    catch { return null; }
+  }).filter(Boolean);
+  return LocalStore.upsertExamples(incoming);
 }

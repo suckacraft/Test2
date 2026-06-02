@@ -55,6 +55,7 @@ export const llmExtractor = {
     return normalizeExtraction(raw, {
       extractor: "llm",
       model: body.meta?.model || payload.model || payload.provider,
+      promptVersion: body.meta?.promptVersion || "",
       durationMs: Math.round(performance.now() - t0),
       fileName: doc.fileName,
     });

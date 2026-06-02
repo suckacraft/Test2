@@ -162,7 +162,10 @@
           <h2 style="margin:0">Correction dataset</h2>
           <span class="small muted" id="fb-count"></span>
           <span style="flex:1"></span>
+          <button class="btn" id="btn-sync">Sync now</button>
           <button class="btn" id="btn-export">Export JSONL</button>
+          <button class="btn" id="btn-import">Import JSONL</button>
+          <input type="file" id="import-file" accept=".jsonl,.json,.txt" hidden />
           <button class="btn" id="btn-clear-fb">Clear</button>
         </div>
         <p class="small muted" style="margin:8px 0 12px">
@@ -204,7 +207,8 @@
           <label class="fld">Model (blank = default)<input id="set-model" placeholder="claude-haiku-4-5-20251001" style="width:230px"/></label>
         </div>
         <div class="row" style="margin-top:10px">
-          <label class="fld">Proxy URL<input id="set-proxy" style="width:280px"/></label>
+          <label class="fld">Proxy URL<input id="set-proxy" style="width:240px"/></label>
+          <label class="fld">Feedback corpus URL<input id="set-feedback" placeholder="/api/feedback (blank = local only)" style="width:240px"/></label>
           <label class="fld">Default markup %<input id="set-markup" type="number" min="0" style="width:90px"/></label>
           <button class="btn primary" id="btn-save-settings" style="align-self:flex-end">Save settings</button>
         </div>

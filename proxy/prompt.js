@@ -9,6 +9,11 @@
 
 import { SCHEMA_PROMPT } from "../src/schema.js";
 
+// Bump when the prompt changes — stamped onto every extraction's provenance so
+// the corpus records which prompt produced a prediction (essential for proving
+// a prompt change actually improved accuracy).
+export const PROMPT_VERSION = "extract-v1";
+
 export const SYSTEM_PROMPT =
 `You are a precise data-extraction engine for IT reseller and distributor quotes.
 Resellers format quotes wildly differently (Ingram, TD Synnex, CDW, Insight, plus

@@ -8,6 +8,10 @@ import { applyMarkup } from "../src/template.js";
 import { toCrmBuyQuote } from "../src/crmAdapter.js";
 import { handleExtract } from "../proxy/handler.js";
 import { SAMPLES } from "../src/samples.js";
+import { migrateExample } from "../src/dataset/contract.js";
+import { recordCorrection, getFeedback, clearFeedback, exportJsonl, importJsonl } from "../src/feedback.js";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.error("✗", msg); } };
@@ -58,6 +62,36 @@ ok(norm.lineItems[0].extendedCost === 300, `extendedCost should be repaired to 3
 const noKey = await handleExtract({ provider: "anthropic", documentText: "x", tables: [] });
 ok(noKey.status === 500 && /ANTHROPIC_API_KEY/.test(noKey.json.error),
   `proxy should report missing key, got ${JSON.stringify(noKey.json)}`);
+
+// 8) Legacy v0 example migrates to the current contract without data loss.
+const legacy = { id: "x1", ts: "2026-01-01T00:00:00Z", fileName: "old.csv",
+  extractor: "mock", model: "heuristic-v1", inputExcerpt: "raw", predicted: q, corrected: golden, diff: [] };
+const mig = migrateExample(legacy);
+ok(mig.exampleSchemaVersion === 1, `legacy should migrate to v1, got ${mig.exampleSchemaVersion}`);
+ok(mig.id === "x1" && mig.provenance.extractor === "mock" && mig.corrected === golden,
+  "migration should preserve id/provenance/label");
+
+// 9) Feedback record → export JSONL → import round-trips (corpus is portable).
+clearFeedback();
+recordCorrection(q, golden, { fileName: "ingram.csv", extractor: "mock", model: "heuristic-v1", docText: "raw text" });
+ok(getFeedback().length === 1, `should have 1 example, got ${getFeedback().length}`);
+const ex0 = getFeedback()[0];
+ok(ex0.provenance && ex0.provenance.appVersion && ex0.exampleSchemaVersion === 1,
+  "recorded example should carry provenance + version");
+const jsonl = exportJsonl();
+clearFeedback();
+const imp = importJsonl(jsonl);
+ok(getFeedback().length === 1 && imp.added === 1, `import should restore 1 example, got ${getFeedback().length}`);
+
+// 10) Durable server-side store: POST appends + dedupes, GET reads back.
+process.env.DATA_DIR = join(tmpdir(), "qp-smoke-" + Date.now());
+const { handleFeedback } = await import("../proxy/feedbackStore.js");
+const post1 = await handleFeedback("POST", "feedback", { items: [{ id: "a" }, { id: "b" }] });
+ok(post1.json.appended === 2, `first post should append 2, got ${post1.json.appended}`);
+const post2 = await handleFeedback("POST", "feedback", { items: [{ id: "b" }, { id: "c" }] });
+ok(post2.json.appended === 1, `dedup: second post should append 1, got ${post2.json.appended}`);
+const get1 = await handleFeedback("GET", "feedback", null);
+ok(get1.json.items.length === 3, `store should hold 3 deduped items, got ${get1.json.items.length}`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -11,7 +11,8 @@ import { listExtractors, getExtractor } from "./extractors/base.js";
 import "./extractors/mockExtractor.js";
 import "./extractors/llmExtractor.js";
 import { recomputeTotals, makeLineItem, makeStandardizedQuote, CATEGORIES, CATEGORY_LABELS, num } from "./schema.js";
-import { recordCorrection, getFeedback, clearFeedback, exportJsonl, promoteToGolden, getGolden } from "./feedback.js";
+import { recordCorrection, getFeedback, clearFeedback, exportJsonl, importJsonl, promoteToGolden, getGolden } from "./feedback.js";
+import { fullSync, rehydrate } from "./dataset/sync.js";
 import { runEval } from "./evaluate.js";
 import { applyMarkup, renderCustomerQuoteHtml } from "./template.js";
 import { toCrmBuyQuote } from "./crmAdapter.js";
@@ -33,6 +34,9 @@ function init() {
   wireEvalTab();
   wireSettings();
   renderSamplesList();
+  // Best-effort: rehydrate the local corpus from the durable store on boot, so a
+  // fresh/wiped browser or a new product instance recovers all learnings.
+  rehydrate().then(r => { if (r && !r.skipped) renderFeedbackList(); }).catch(() => {});
 }
 
 // ── tabs ──────────────────────────────────────────────────────────────────────
@@ -199,6 +203,8 @@ function wireReviewButtons() {
     });
     toast("Correction saved to feedback dataset ✓", "ok");
     $("fb-count").textContent = `${getFeedback().length} example(s)`;
+    // Best-effort push to the durable store so the learning isn't trapped locally.
+    fullSync().then(r => { if (r?.error) console.warn("sync:", r.error); }).catch(() => {});
   });
   $("btn-template").addEventListener("click", () => {
     const markup = num($("f-markup").value, getSettings().defaultMarkupPct);
@@ -224,7 +230,23 @@ function wireFeedbackTab() {
     download("feedback.jsonl", data, "application/jsonl");
   });
   $("btn-clear-fb").addEventListener("click", () => {
-    if (confirm("Clear all feedback examples?")) { clearFeedback(); renderFeedbackList(); }
+    if (confirm("Clear the LOCAL feedback copy? (The durable store is untouched — Sync to restore.)")) {
+      clearFeedback(); renderFeedbackList();
+    }
+  });
+  $("btn-import").addEventListener("click", () => $("import-file").click());
+  $("import-file").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const { added, total } = importJsonl(await f.text());
+    renderFeedbackList();
+    toast(`Imported ${added} new (${total} total)`, "ok");
+  });
+  $("btn-sync").addEventListener("click", async () => {
+    const r = await fullSync();
+    if (r.skipped) return toast("Set a Feedback corpus URL in Settings to sync", "err");
+    if (r.error) return toast(`Sync error: ${r.error}`, "err");
+    renderFeedbackList();
+    toast(`Synced · pushed ${r.pushed || 0}, pulled ${r.feedback?.added || 0} new`, "ok");
   });
 }
 function renderFeedbackList() {
@@ -302,6 +324,7 @@ function loadSettingsForm() {
   $("set-provider").value = s.provider;
   $("set-model").value = s.model;
   $("set-proxy").value = s.proxyUrl;
+  $("set-feedback").value = s.feedbackUrl;
   $("set-markup").value = s.defaultMarkupPct;
 }
 function wireSettings() {
@@ -312,6 +335,7 @@ function wireSettings() {
       provider: $("set-provider").value,
       model: $("set-model").value.trim(),
       proxyUrl: $("set-proxy").value.trim() || "/api/extract",
+      feedbackUrl: $("set-feedback").value.trim(),
       defaultMarkupPct: num($("set-markup").value, 20),
     });
     $("sel-extractor").value = $("set-extractor").value;

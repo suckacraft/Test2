@@ -107,9 +107,11 @@ CRM adapter maps. Swapping inference engines (Mock → Claude/GPT → your compa
 LLM) touches only the extractor; nothing else changes.
 
 See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the full layout and the
-schema, and **[docs/MIGRATION.md](docs/MIGRATION.md)** for the exact method to
-fuse this into `crm-project` (full modernization + `git subtree`) and swap in
-your internal LLM.
+schema, **[docs/MIGRATION.md](docs/MIGRATION.md)** for the exact method to fuse
+this into `crm-project` (full modernization + `git subtree`) and swap in your
+internal LLM, **[docs/LEARNING_CONTINUITY.md](docs/LEARNING_CONTINUITY.md)** for
+how the feedback/eval corpus survives product change, and
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for hosting.
 
 ```
 index.html              # app shell (matches crm-project styling)

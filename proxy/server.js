@@ -16,6 +16,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join, normalize, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleExtract } from "./handler.js";
+import { handleFeedback } from "./feedbackStore.js";
 
 const ROOT = normalize(join(fileURLToPath(new URL(".", import.meta.url)), ".."));
 const PORT = process.env.PORT || 8787;
@@ -37,6 +38,20 @@ const server = createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       const result = await handleExtract(JSON.parse(body || "{}"));
+      res.writeHead(result.status, { "content-type": "application/json" });
+      return res.end(JSON.stringify(result.json));
+    } catch (e) {
+      res.writeHead(500, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
+  // Durable corpus: /api/feedback and /api/golden (GET to read, POST to append).
+  const fbMatch = req.url.match(/^\/api\/(feedback|golden)\b/);
+  if (fbMatch && (req.method === "GET" || req.method === "POST")) {
+    try {
+      const body = req.method === "POST" ? JSON.parse((await readBody(req)) || "{}") : null;
+      const result = await handleFeedback(req.method, fbMatch[1], body);
       res.writeHead(result.status, { "content-type": "application/json" });
       return res.end(JSON.stringify(result.json));
     } catch (e) {

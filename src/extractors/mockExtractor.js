@@ -42,7 +42,7 @@ export const mockExtractor = {
       warnings: items.length ? [] : ["mock extractor found no table-like content"],
     };
     return normalizeExtraction(raw, {
-      extractor: "mock", model: "heuristic-v1",
+      extractor: "mock", model: "heuristic-v1", promptVersion: "heuristic-v1",
       durationMs: Math.round(now() - t0), fileName: doc.fileName,
     });
   },

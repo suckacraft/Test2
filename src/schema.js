@@ -77,6 +77,7 @@ export function makeStandardizedQuote(partial = {}) {
     meta: {
       extractor: partial.meta?.extractor ?? "unknown",
       model: partial.meta?.model ?? "",
+      promptVersion: partial.meta?.promptVersion ?? "",
       extractedAt: partial.meta?.extractedAt ?? new Date().toISOString(),
       durationMs: partial.meta?.durationMs ?? null,
       warnings: partial.meta?.warnings ?? [],

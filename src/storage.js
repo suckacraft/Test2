@@ -29,8 +29,11 @@ export function storageKey(name) {
   return `${cfg.prefix}_${name}${cfg.scope ? `_u${cfg.scope}` : ""}`;
 }
 
+let _mem;
 function store() {
-  return cfg.backend || (typeof localStorage !== "undefined" ? localStorage : memoryStore());
+  if (cfg.backend) return cfg.backend;
+  if (typeof localStorage !== "undefined") return localStorage;
+  return (_mem ||= memoryStore());   // singleton fallback (tests / non-browser)
 }
 
 // Logical key names — resolved live so configureStorage() takes effect even if
@@ -55,6 +58,7 @@ const DEFAULT_SETTINGS = {
   provider: "anthropic",
   model: "",
   proxyUrl: "/api/extract",
+  feedbackUrl: "",          // durable corpus endpoint, e.g. "/api/feedback"; "" = local only
   defaultMarkupPct: 20,
   currency: "USD",
 };

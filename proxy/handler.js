@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { PROVIDERS } from "./providers.js";
-import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
+import { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./prompt.js";
 
 export async function handleExtract(body) {
   const providerName = (body.provider || "anthropic").toLowerCase();
@@ -43,6 +43,7 @@ export async function handleExtract(body) {
       meta: {
         provider: providerName,
         model: out.model || model,
+        promptVersion: PROMPT_VERSION,
         durationMs: Date.now() - t0,
         usage: out.usage || null,
       },
