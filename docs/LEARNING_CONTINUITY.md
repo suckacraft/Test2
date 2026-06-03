@@ -79,7 +79,10 @@ Make corpus-transfer a habit, not an afterthought:
 - **Distillation is regenerated from the store, not hand-carried:** few-shot
   exemplars in the prompt, per-vendor rules, and fine-tuning sets are all derived
   from the durable corpus. Changing the model = re-run distillation over the same
-  corpus.
+  corpus. **Implemented:** `proxy/fewshot.js` retrieves the most relevant
+  human-reviewed examples (token-overlap rank) and injects them into the
+  extraction prompt (`FEWSHOT_LIMIT`); the effective `promptVersion` is stamped
+  `extract-v1+fsN` so few-shot vs baseline runs stay comparable in eval.
 
 ## Where the corpus lives (decided: a managed database)
 
@@ -140,5 +143,5 @@ never coupled to the app in the first place.
 - [ ] Corpus persists in a managed DB, outside the browser ✅ (postgres backend)
 - [ ] Local ⇄ durable sync on save + boot ✅ (sync.js)
 - [ ] Eval is model-agnostic, run on every extractor/prompt/model change ✅
-- [ ] Distillation (few-shot / rules / fine-tune sets) regenerated from the store
+- [ ] Few-shot distillation regenerated from the store ✅ (proxy/fewshot.js)
 - [ ] App + CRM are just clients of the corpus API; DB backups + auth enabled

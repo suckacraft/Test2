@@ -24,8 +24,20 @@ the confidence and add a warning rather than guessing.
 
 ${SCHEMA_PROMPT}`;
 
-export function buildUserPrompt({ fileName, mimeType, documentText, tables }) {
+export function buildUserPrompt({ fileName, mimeType, documentText, tables, exemplars = [] }) {
   const parts = [];
+
+  // Corpus-driven few-shot: human-reviewed examples of correct extractions,
+  // retrieved by relevance to this document. The model should follow their style.
+  if (exemplars.length) {
+    parts.push("=== EXAMPLES OF CORRECT EXTRACTIONS (human-reviewed; follow this exact JSON style) ===");
+    exemplars.forEach((ex, i) => {
+      parts.push(`\n--- Example ${i + 1}: source ---\n${ex.input}`);
+      parts.push(`--- Example ${i + 1}: correct JSON ---\n${JSON.stringify(ex.output)}`);
+    });
+    parts.push("\n=== NOW EXTRACT THE FOLLOWING QUOTE ===");
+  }
+
   parts.push(`SOURCE FILE: ${fileName || "unknown"} (${mimeType || "unknown type"})`);
 
   if (tables && tables.length) {

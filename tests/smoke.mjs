@@ -118,5 +118,31 @@ process.env.ALLOWED_ORIGIN = "https://app.example.com";
 ok(corsHeaders()["Access-Control-Allow-Origin"] === "https://app.example.com", "CORS should lock to ALLOWED_ORIGIN");
 delete process.env.API_TOKEN; delete process.env.ALLOWED_ORIGIN;
 
+// 13) Harder samples reconcile (discounts, VAT/shipping, bundles).
+const cdwVat = makeStandardizedQuote(SAMPLES.find(s => s.id === "cdw-vat").expected);
+ok(cdwVat.totals.subtotalCost === 5175, `cdw-vat subtotal (incl -575 discount) should be 5175, got ${cdwVat.totals.subtotalCost}`);
+ok(cdwVat.totals.grandTotalCost === 6240, `cdw-vat grand (=> +25 ship +1040 vat) should be 6240, got ${cdwVat.totals.grandTotalCost}`);
+ok(cdwVat.categoryTotals.other.cost === -575, `discount should land in 'other' as -575, got ${cdwVat.categoryTotals.other.cost}`);
+const bundle = makeStandardizedQuote(SAMPLES.find(s => s.id === "dell-bundle").expected);
+ok(bundle.lineItems.length === 5 && bundle.totals.grandTotalCost === 9700,
+  `bundle should keep 5 lines (incl $0 children) summing 9700, got ${bundle.lineItems.length}/${bundle.totals.grandTotalCost}`);
+
+// 14) Corpus-driven few-shot: retrieve relevant exemplars + render into prompt.
+process.env.DATA_DIR = join(tmpdir(), "qp-fewshot-" + Date.now());
+await handleFeedback("POST", "feedback", { items: [{
+  id: "ex1", inputExcerpt: "Acme reseller quote PowerEdge R660 server processor memory xyzzy",
+  corrected: bundle,
+}] });
+const { selectExemplars } = await import("../proxy/fewshot.js");
+const { buildUserPrompt } = await import("../proxy/prompt.js");
+const picked = await selectExemplars("Incoming quote: PowerEdge R660 server with processor and memory xyzzy", { limit: 3 });
+ok(picked.length === 1 && picked[0].output.lineItems.length === 5,
+  `few-shot should retrieve the 1 relevant exemplar with its lines, got ${picked.length}`);
+ok((await selectExemplars("totally unrelated text", { limit: 3 })).length === 0,
+  "few-shot should retrieve nothing for unrelated input");
+const prompt = buildUserPrompt({ fileName: "q.csv", documentText: "x", tables: [], exemplars: picked });
+ok(prompt.includes("EXAMPLES OF CORRECT EXTRACTIONS") && prompt.includes("xyzzy"),
+  "prompt should embed the retrieved exemplar");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

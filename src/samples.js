@@ -81,6 +81,86 @@ Qty   Description                                   Unit       Line Total
       ],
     },
   },
+  {
+    id: "tdsynnex",
+    name: "TD Synnex — distributor CSV (EUR, line discounts)",
+    fileName: "tdsynnex-EU44120.csv",
+    mime: "text/csv",
+    content:
+`TD SYNNEX Europe — Quote
+Quote Number: EU-44120,Date: 2026-05-30,Valid Until: 2026-07-10,Currency: EUR
+SKU,Description,Qty,List,Disc%,Unit Net,Ext
+R740XD-CFG,Dell PowerEdge R740xd Server,2,5000.00,12%,4400.00,8800.00
+VMW-VSP-8,VMware vSphere 8 Standard (1 CPU),4,1200.00,20%,960.00,3840.00
+TDS-FREIGHT,Freight,1,60.00,0%,60.00,60.00
+,,,,,Grand Total,12700.00`,
+    expected: {
+      source: { vendor: "TD SYNNEX", quoteNumber: "EU-44120", currency: "EUR", validUntil: "2026-07-10" },
+      totals: { grandTotalCost: 12700.00 },
+      lineItems: [
+        // discount applied → unitCost is the NET (post-discount) price
+        { sku: "R740XD-CFG", description: "Dell PowerEdge R740xd Server", category: "hw", quantity: 2, unitCost: 4400, extendedCost: 8800 },
+        { sku: "VMW-VSP-8", description: "VMware vSphere 8 Standard (1 CPU)", category: "sw", quantity: 4, unitCost: 960, extendedCost: 3840 },
+        { sku: "TDS-FREIGHT", description: "Freight", category: "other", quantity: 1, unitCost: 60, extendedCost: 60 },
+      ],
+    },
+  },
+  {
+    id: "cdw-vat",
+    name: "CDW — text (GBP, order discount + VAT + shipping)",
+    fileName: "cdw-7782145.txt",
+    mime: "text/plain",
+    content:
+`CDW Limited — Quotation
+Quote No: 7782145   Valid until: 20/08/2026   Currency: GBP
+
+Qty  Description                                   Unit       Line Total
+1    Palo Alto PA-440 Firewall                     £3,200.00  £3,200.00
+1    PAN-DB URL Filtering Subscription (1 yr)       £950.00    £950.00
+2    Firewall Install & Configuration (per day)     £800.00    £1,600.00
+     Customer discount (10%)                                   -£575.00
+                                          Shipping             £25.00
+                                          VAT (20%)            £1,040.00
+                                          Grand Total          £6,240.00`,
+    expected: {
+      source: { vendor: "CDW", quoteNumber: "7782145", currency: "GBP", validUntil: "2026-08-20" },
+      totals: { tax: 1040, shipping: 25, grandTotalCost: 6240.00 },
+      lineItems: [
+        { sku: "", description: "Palo Alto PA-440 Firewall", category: "hw", quantity: 1, unitCost: 3200, extendedCost: 3200 },
+        { sku: "", description: "PAN-DB URL Filtering Subscription (1 yr)", category: "sw", quantity: 1, unitCost: 950, extendedCost: 950 },
+        { sku: "", description: "Firewall Install & Configuration (per day)", category: "ps", quantity: 2, unitCost: 800, extendedCost: 1600 },
+        // order-level discount captured as a negative "other" line so totals reconcile
+        { sku: "", description: "Customer discount (10%)", category: "other", quantity: 1, unitCost: -575, extendedCost: -575 },
+      ],
+    },
+  },
+  {
+    id: "dell-bundle",
+    name: "Dell — CSV (USD, configured bundle + $0 child SKUs)",
+    fileName: "dell-Q4471.csv",
+    mime: "text/csv",
+    content:
+`Dell Technologies — Quote
+Quote Number: DELL-Q-4471,Date: 2026-06-01,Valid Until: 2026-06-21,Currency: USD
+SKU,Description,Qty,Unit,Ext
+PE-R660-BUNDLE,PowerEdge R660 Configured Bundle,1,8500.00,8500.00
+,Xeon Silver 4410Y Processor,2,0.00,0.00
+,64GB RDIMM Memory,4,0.00,0.00
+,480GB SATA SSD,2,0.00,0.00
+PROSUPPORT-3YR,ProSupport Plus 3 Year,1,1200.00,1200.00
+,,,Grand Total,9700.00`,
+    expected: {
+      source: { vendor: "Dell", quoteNumber: "DELL-Q-4471", currency: "USD", validUntil: "2026-06-21" },
+      totals: { grandTotalCost: 9700.00 },
+      lineItems: [
+        { sku: "PE-R660-BUNDLE", description: "PowerEdge R660 Configured Bundle", category: "hw", quantity: 1, unitCost: 8500, extendedCost: 8500 },
+        { sku: "", description: "Xeon Silver 4410Y Processor", category: "hw", quantity: 2, unitCost: 0, extendedCost: 0 },
+        { sku: "", description: "64GB RDIMM Memory", category: "hw", quantity: 4, unitCost: 0, extendedCost: 0 },
+        { sku: "", description: "480GB SATA SSD", category: "hw", quantity: 2, unitCost: 0, extendedCost: 0 },
+        { sku: "PROSUPPORT-3YR", description: "ProSupport Plus 3 Year", category: "sw", quantity: 1, unitCost: 1200, extendedCost: 1200 },
+      ],
+    },
+  },
 ];
 
 /** Build a browser File from a sample so it flows through the normal ingest path. */

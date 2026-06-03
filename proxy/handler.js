@@ -10,6 +10,7 @@
 
 import { PROVIDERS } from "./providers.js";
 import { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./prompt.js";
+import { selectExemplars } from "./fewshot.js";
 
 export async function handleExtract(body) {
   const providerName = (body.provider || "anthropic").toLowerCase();
@@ -23,7 +24,11 @@ export async function handleExtract(body) {
     return err(400, "no document content provided");
 
   const model = body.model || provider.defaultModel;
-  const user = buildUserPrompt(body);
+  // Corpus-driven few-shot (FEWSHOT_LIMIT=0 → off / deterministic baseline).
+  const fewshotLimit = Number(process.env.FEWSHOT_LIMIT || 0);
+  const exemplars = await selectExemplars(body.documentText || "", { limit: fewshotLimit });
+  const user = buildUserPrompt({ ...body, exemplars });
+  const effPromptVersion = exemplars.length ? `${PROMPT_VERSION}+fs${exemplars.length}` : PROMPT_VERSION;
   const t0 = Date.now();
 
   let out;
@@ -43,7 +48,8 @@ export async function handleExtract(body) {
       meta: {
         provider: providerName,
         model: out.model || model,
-        promptVersion: PROMPT_VERSION,
+        promptVersion: effPromptVersion,
+        fewshot: exemplars.length,
         durationMs: Date.now() - t0,
         usage: out.usage || null,
       },
