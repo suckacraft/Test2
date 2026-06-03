@@ -123,11 +123,20 @@ npm run proxy      # :8787  (needs ANTHROPIC_API_KEY / OPENAI_API_KEY)
 npm run dev        # :5173  (Vite proxies /api → :8787)
 ```
 
-## Production notes (beyond the POC)
+## Production hardening (built in — just set env)
 
-- **Secrets** live only in the platform's env vars — never in the repo or browser.
-- **Restrict CORS** to your origin (see above).
-- **Add auth** to the proxy if it's public (a shared header/token), so it isn't
-  an open relay to your paid LLM accounts.
+The proxy ships transport guards (`proxy/http.js`) that are **open when unset**
+(local dev) and **locked when set** (production):
+
+- `API_TOKEN` — require `Authorization: Bearer <token>` on every `/api/*` request
+  (extract **and** corpus), so the proxy isn't an open relay to your paid LLM
+  accounts / corpus. Set the same value in the app's **Settings → API token**.
+- `ALLOWED_ORIGIN` — lock CORS to your app's origin instead of `*`.
+- `MAX_BODY_BYTES` — request body cap (default 4 MB; returns 413 over limit).
+
+Also:
+- **Secrets** live only in the platform's env vars — never in the repo. (The API
+  token does reach the browser, so it gates abuse, not per-user access; for true
+  per-user control, front the proxy with the CRM session once merged.)
 - **Swap in your company LLM** by adding a provider in `proxy/providers.js`; no
   redeploy of the front-end needed.

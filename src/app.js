@@ -325,6 +325,7 @@ function loadSettingsForm() {
   $("set-model").value = s.model;
   $("set-proxy").value = s.proxyUrl;
   $("set-feedback").value = s.feedbackUrl;
+  $("set-token").value = s.apiToken;
   $("set-markup").value = s.defaultMarkupPct;
 }
 function wireSettings() {
@@ -336,6 +337,7 @@ function wireSettings() {
       model: $("set-model").value.trim(),
       proxyUrl: $("set-proxy").value.trim() || "/api/extract",
       feedbackUrl: $("set-feedback").value.trim(),
+      apiToken: $("set-token").value.trim(),
       defaultMarkupPct: num($("set-markup").value, 20),
     });
     $("sel-extractor").value = $("set-extractor").value;

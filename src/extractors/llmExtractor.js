@@ -10,7 +10,7 @@
 
 import { registerExtractor } from "./base.js";
 import { normalizeExtraction } from "../normalize.js";
-import { getSettings } from "../storage.js";
+import { getSettings, authHeaders } from "../storage.js";
 
 export const llmExtractor = {
   id: "llm",
@@ -36,7 +36,7 @@ export const llmExtractor = {
     try {
       res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(payload),
       });
     } catch (e) {

@@ -11,7 +11,7 @@
 // the corpus is rehydrated from RemoteStore — that's the continuity guarantee.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { KEYS, ls, ss, getSettings } from "../storage.js";
+import { KEYS, ls, ss, getSettings, authHeaders } from "../storage.js";
 import { migrateExample } from "./contract.js";
 
 // ── Local working copy (synchronous) ──────────────────────────────────────────
@@ -63,7 +63,7 @@ export const RemoteStore = {
   enabled() { return !!this.baseUrl(); },
 
   async pull(kind = "feedback") {
-    const r = await fetch(`${this.baseUrl()}/${kind}`, { method: "GET" });
+    const r = await fetch(`${this.baseUrl()}/${kind}`, { method: "GET", headers: { ...authHeaders() } });
     if (!r.ok) throw new Error(`pull ${kind} ${r.status}`);
     const body = await r.json();
     return body.examples || body.golden || body.items || [];
@@ -72,7 +72,7 @@ export const RemoteStore = {
     if (!items.length) return { appended: 0 };
     const r = await fetch(`${this.baseUrl()}/${kind}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ items }),
     });
     if (!r.ok) throw new Error(`push ${kind} ${r.status}`);

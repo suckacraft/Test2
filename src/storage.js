@@ -59,9 +59,16 @@ const DEFAULT_SETTINGS = {
   model: "",
   proxyUrl: "/api/extract",
   feedbackUrl: "",          // durable corpus endpoint, e.g. "/api/feedback"; "" = local only
+  apiToken: "",             // sent as Authorization: Bearer to a locked-down proxy
   defaultMarkupPct: 20,
   currency: "USD",
 };
+
+/** Auth header for proxy/corpus calls when an API token is configured. */
+export function authHeaders() {
+  const t = getSettings().apiToken;
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
 
 export function getSettings() { return { ...DEFAULT_SETTINGS, ...(ls(KEYS.settings, {}) || {}) }; }
 export function saveSettings(patch) {

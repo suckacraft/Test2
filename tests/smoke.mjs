@@ -105,5 +105,18 @@ ok(shim.migrated === 1, `shim should migrate 1 key, got ${shim.migrated}`);
 ok(localStorage.getItem("kb_feedback_u42") === JSON.stringify([{ id: "z" }]),
   "shim should copy qp_feedback → kb_feedback_u42");
 
+// 12) Auth guard: open when API_TOKEN unset; enforced + constant-time when set.
+const { authError, corsHeaders } = await import("../proxy/http.js");
+delete process.env.API_TOKEN;
+ok(authError(() => "") === null, "auth should be open when API_TOKEN unset");
+process.env.API_TOKEN = "s3cret-token";
+ok(authError(() => "")?.status === 401, "auth should reject missing token");
+ok(authError(() => "Bearer wrong")?.status === 401, "auth should reject wrong token");
+ok(authError(() => "Bearer s3cret-token") === null, "auth should accept Bearer token");
+ok(authError(() => "s3cret-token") === null, "auth should accept raw x-api-token");
+process.env.ALLOWED_ORIGIN = "https://app.example.com";
+ok(corsHeaders()["Access-Control-Allow-Origin"] === "https://app.example.com", "CORS should lock to ALLOWED_ORIGIN");
+delete process.env.API_TOKEN; delete process.env.ALLOWED_ORIGIN;
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

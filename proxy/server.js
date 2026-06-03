@@ -17,6 +17,7 @@ import { join, normalize, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleExtract } from "./handler.js";
 import { handleFeedback } from "./feedbackStore.js";
+import { corsHeaders, authError, maxBody } from "./http.js";
 
 const ROOT = normalize(join(fileURLToPath(new URL(".", import.meta.url)), ".."));
 const PORT = process.env.PORT || 8787;
@@ -28,11 +29,15 @@ const MIME = {
 };
 
 const server = createServer(async (req, res) => {
-  // CORS so the app can be hosted separately from the proxy if desired.
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  const cors = corsHeaders();
+  for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
   if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
+
+  const isApi = req.url.startsWith("/api/");
+  if (isApi) {
+    const denied = authError(n => req.headers[n.toLowerCase()]);
+    if (denied) { res.writeHead(denied.status, { "content-type": "application/json" }); return res.end(JSON.stringify(denied.json)); }
+  }
 
   if (req.method === "POST" && req.url.startsWith("/api/extract")) {
     try {
@@ -41,7 +46,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(result.status, { "content-type": "application/json" });
       return res.end(JSON.stringify(result.json));
     } catch (e) {
-      res.writeHead(500, { "content-type": "application/json" });
+      res.writeHead(e.code === "TOO_LARGE" ? 413 : 500, { "content-type": "application/json" });
       return res.end(JSON.stringify({ error: e.message }));
     }
   }
@@ -55,7 +60,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(result.status, { "content-type": "application/json" });
       return res.end(JSON.stringify(result.json));
     } catch (e) {
-      res.writeHead(500, { "content-type": "application/json" });
+      res.writeHead(e.code === "TOO_LARGE" ? 413 : 500, { "content-type": "application/json" });
       return res.end(JSON.stringify({ error: e.message }));
     }
   }
@@ -79,7 +84,15 @@ const server = createServer(async (req, res) => {
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let b = ""; req.on("data", c => (b += c)); req.on("end", () => resolve(b)); req.on("error", reject);
+    const limit = maxBody();
+    let b = "", size = 0;
+    req.on("data", c => {
+      size += c.length;
+      if (size > limit) { const e = new Error("request body too large"); e.code = "TOO_LARGE"; req.destroy(); return reject(e); }
+      b += c;
+    });
+    req.on("end", () => resolve(b));
+    req.on("error", reject);
   });
 }
 
