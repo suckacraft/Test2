@@ -50,11 +50,13 @@ export function mountReviewPanel(container, opts = {}) {
       <tfoot><tr><td colspan="6" class="qrp-r qrp-b">Grand total</td>
         <td class="qrp-r qrp-b" data-grand></td><td></td></tr></tfoot>
     </table>
+    ${opts.notes === false ? "" : `<label class="qrp-note">What did the extractor get wrong? (optional)
+      <textarea data-note rows="2" placeholder="e.g. put the freight line under hardware; missed the 10% discount"></textarea></label>`}
     <div class="qrp-actions">
       <button class="qrp-btn" data-add>+ Add line</button>
       <span class="qrp-cats" data-cats></span>
       <span class="qrp-spacer"></span>
-      <button class="qrp-btn qrp-primary" data-save>Save correction</button>
+      <button class="qrp-btn qrp-primary" data-save>Save &amp; approve</button>
     </div>
   </div>`;
 
@@ -73,7 +75,8 @@ export function mountReviewPanel(container, opts = {}) {
   });
   el.querySelector("[data-save]").addEventListener("click", () => {
     recomputeTotals(working);
-    opts.onSave && opts.onSave(working);
+    const note = el.querySelector("[data-note]")?.value.trim() || "";
+    opts.onSave && opts.onSave(working, { note });
   });
 
   renderRows();
@@ -162,6 +165,8 @@ function styleTag() {
   .qrp-tbl input,.qrp-tbl select{width:100%;padding:3px 5px;font:12px inherit;border:1px solid #dfe1e6;border-radius:4px}
   .qrp-r{text-align:right}.qrp-b{font-weight:800}.qrp-mut{color:#5e6c84}
   .qrp-x{border:1px solid #dfe1e6;background:#fff;border-radius:4px;cursor:pointer;padding:2px 7px;color:#de350b}
+  .qrp-note{display:block;font-size:11px;font-weight:600;color:#5e6c84;margin-top:12px}
+  .qrp-note textarea{display:block;width:100%;margin-top:4px;font:12px inherit;padding:6px 8px;border:1px solid #dfe1e6;border-radius:5px;resize:vertical;color:#172b4d}
   .qrp-actions{display:flex;align-items:center;gap:10px;margin-top:10px}
   .qrp-spacer{flex:1}
   .qrp-btn{font:12px inherit;font-weight:600;padding:6px 13px;border:1px solid #dfe1e6;background:#fff;border-radius:6px;cursor:pointer}

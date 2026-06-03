@@ -36,6 +36,9 @@ export function makeExample({ predicted, corrected, diff = [], context = {} }) {
     predicted,        // what the extractor said
     corrected,        // the human-approved truth (the label)
     diff,             // field-level changes (analytics: where the model errs)
+    // Free-text reviewer note ("what did the extractor get wrong?") — a strong
+    // training/diagnostic signal that complements the structured diff.
+    note: context.note || "",
   };
 }
 
@@ -70,7 +73,12 @@ export function migrateExample(ex) {
     };
     v = 1;
   }
-  // Future migrations chain here: if (v === 1) { …; v = 2; }
+  if (v === 1) {
+    // v2 adds the free-text reviewer note. Older examples simply default to "".
+    ex = { ...ex, note: ex.note || "", exampleSchemaVersion: 2 };
+    v = 2;
+  }
+  // Future migrations chain here: if (v === 2) { …; v = 3; }
   return ex;
 }
 
@@ -80,6 +88,7 @@ export function exampleToJsonl(ex) {
     id: ex.id,
     input: ex.inputExcerpt,
     output: ex.corrected,
+    note: ex.note || "",
     provenance: ex.provenance,
     capturedAt: ex.capturedAt,
     exampleSchemaVersion: ex.exampleSchemaVersion,

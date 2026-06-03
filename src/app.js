@@ -200,7 +200,9 @@ function wireReviewButtons() {
     recordCorrection(state.predicted, state.working, {
       fileName: state.working.source.fileName, extractor: state.predicted.meta.extractor,
       model: state.predicted.meta.model, docText: state.doc?.text || "",
+      note: $("f-note")?.value.trim() || "",
     });
+    if ($("f-note")) $("f-note").value = "";
     toast("Correction saved to feedback dataset ✓", "ok");
     $("fb-count").textContent = `${getFeedback().length} example(s)`;
     // Best-effort push to the durable store so the learning isn't trapped locally.
@@ -258,7 +260,7 @@ function renderFeedbackList() {
       <td class="small">${new Date(e.ts).toLocaleString()}</td>
       <td>${esc(e.fileName)}</td>
       <td class="small">${esc(e.extractor)}${e.model ? " / " + esc(e.model) : ""}</td>
-      <td><span class="tag">${e.diff.length} edit(s)</span></td>
+      <td><span class="tag">${e.diff.length} edit(s)</span>${e.note ? ` <span class="tag" title="${esc(e.note)}">📝 note</span>` : ""}</td>
       <td><button class="btn small" data-golden="${e.id}">Promote → golden</button></td>
     </tr>`).join("")}</tbody></table>`;
   $("fb-list").querySelectorAll("[data-golden]").forEach(b =>

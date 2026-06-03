@@ -67,17 +67,19 @@ ok(noKey.status === 500 && /ANTHROPIC_API_KEY/.test(noKey.json.error),
 const legacy = { id: "x1", ts: "2026-01-01T00:00:00Z", fileName: "old.csv",
   extractor: "mock", model: "heuristic-v1", inputExcerpt: "raw", predicted: q, corrected: golden, diff: [] };
 const mig = migrateExample(legacy);
-ok(mig.exampleSchemaVersion === 1, `legacy should migrate to v1, got ${mig.exampleSchemaVersion}`);
+ok(mig.exampleSchemaVersion === 2, `legacy v0 should migrate up to v2, got ${mig.exampleSchemaVersion}`);
 ok(mig.id === "x1" && mig.provenance.extractor === "mock" && mig.corrected === golden,
   "migration should preserve id/provenance/label");
+ok(mig.note === "", "v2 migration should default note to ''");
 
 // 9) Feedback record → export JSONL → import round-trips (corpus is portable).
 clearFeedback();
-recordCorrection(q, golden, { fileName: "ingram.csv", extractor: "mock", model: "heuristic-v1", docText: "raw text" });
+recordCorrection(q, golden, { fileName: "ingram.csv", extractor: "mock", model: "heuristic-v1", docText: "raw text", note: "freight should be hardware" });
 ok(getFeedback().length === 1, `should have 1 example, got ${getFeedback().length}`);
 const ex0 = getFeedback()[0];
-ok(ex0.provenance && ex0.provenance.appVersion && ex0.exampleSchemaVersion === 1,
+ok(ex0.provenance && ex0.provenance.appVersion && ex0.exampleSchemaVersion === 2,
   "recorded example should carry provenance + version");
+ok(ex0.note === "freight should be hardware", `reviewer note should persist, got "${ex0.note}"`);
 const jsonl = exportJsonl();
 clearFeedback();
 const imp = importJsonl(jsonl);
