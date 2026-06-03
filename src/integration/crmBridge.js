@@ -83,3 +83,7 @@ export function recordReview(predicted, finalQuote, context = {}) {
 
 // Re-export the low-level mappers for callers that want them directly.
 export { toCrmBuyQuote, toCrmLineItems };
+
+// Embeddable review/correction panel — mount in the CRM's quote-detail pane to
+// capture line-item-level corrections (the high-fidelity training signal).
+export { mountReviewPanel } from "../ui/reviewPanel.js";
